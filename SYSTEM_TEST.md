@@ -2,7 +2,7 @@
 
 **Project:** WineFridgeController
 **Board:** Arduino Leonardo (ATmega32U4)
-**Date:** 2026-03-29
+**Date:** 2026-07-23
 **Firmware file:** src/main.cpp
 
 ---
@@ -19,7 +19,7 @@
 
 ---
 
-## Section 1 — Power-On & Safety (NFR-SAFE-02)
+## Section 1 — Power-On & Safety (NFR-SAFE-01 .. NFR-SAFE-03)
 
 | # | Test | Steps | Expected | Pass/Fail |
 |---|---|---|---|---|
@@ -27,6 +27,7 @@
 | 1.2 | Display initialises | Power on board | 7-segment shows current temperature within ~1 second | |
 | 1.3 | Default set-point on blank EEPROM | Flash fresh firmware to new board | Set-point defaults to 12°C | |
 | 1.4 | systemOn defaults ON on blank EEPROM | Flash fresh firmware to new board | System starts in ON state | |
+| 1.5 | Watchdog reset (NFR-SAFE-03) | Stall the main loop (e.g., disconnect I2C bus mid-transaction, or add a temporary infinite loop for bench test only — do not ship) | MCU resets within 8 seconds and resumes normal operation without a manual reset or double-tap of the reset button | |
 
 ---
 
@@ -78,7 +79,7 @@
 | 5.1 | Set-point display window | Press C3 or C4 | Display switches to set-point value for 3 seconds, then returns to current temp | |
 | 5.2 | Solid then blink | Press C3 and observe display | Set-point shows solid for first 1 second, then blinks at ~700 ms until 3 second window ends | |
 | 5.3 | No leading zero | When temperature is single digit (e.g. 9°C) | Tens digit is blank, not "0" | |
-| 5.4 | Celsius indicator | Default mode | Third digit shows "C" | |
+| 5.4 | Celsius indicator | Default mode | Third digit shows "C" — **note known issue BUG-05 (PRD.md §6):** firmware writes this glyph to digit position 2, the colon slot on a 4-digit HT16K33 backpack, not a real digit. Record what the actual hardware shows; if it doesn't read as "C", this confirms BUG-05 and a firmware fix is needed. | |
 | 5.5 | "OFF" text | System in OFF state | Display shows "OFF" | |
 | 5.6 | "Err" text | Sensor fault active | Display shows "Err" | |
 
@@ -108,6 +109,18 @@
 
 ---
 
+## Section 7a — Duty Cycle Display (FR-DISP-10 .. FR-DISP-13)
+
+| # | Test | Steps | Expected | Pass/Fail |
+|---|---|---|---|---|
+| 7a.1 | Long-press shows duty cycle | Hold C2 (Light) for 3+ seconds | Display switches to duty-cycle percentage in format `"XXd"` | |
+| 7a.2 | Short press still toggles light | Press and release C2 in under 3 seconds | Light toggles on/off; duty-cycle screen does not appear | |
+| 7a.3 | Duty cycle auto-return | After viewing duty cycle | Display returns to normal (current temp / set temp / alarm) after 10 seconds | |
+| 7a.4 | Duty cycle priority | Trigger the duty-cycle display while an alarm is active | Duty-cycle screen takes priority over the `HI`/`LO` alarm display | |
+| 7a.5 | Duty cycle value sanity | Let the compressor run for a known period, then check the duty-cycle % | Percentage matches (compressor ON time ÷ total uptime) × 100, clamped to 0–99 | |
+
+---
+
 ## Section 8 — Compressor Control (FR-COMP-01 .. FR-COMP-04)
 
 | # | Test | Steps | Expected | Pass/Fail |
@@ -131,6 +144,7 @@
 | 9.4 | Low temp alarm — fires | Lower temperature to set-point −3°C, compressor OFF | Buzzer beeps after 5-minute delay | |
 | 9.5 | Low temp alarm — suppressed during cooling | Compressor running causes overshoot below set−3°C | No alarm while compressor is ON | |
 | 9.6 | Low temp alarm clears | Temperature returns to normal range | Buzzer stops | |
+| 9.7 | Alarm silence carryover (known issue BUG-07, see PRD.md §6) | Trigger an alarm, press a button to silence it, let temperature recover so the alarm clears, then force a new distinct alarm condition before the original 10-minute silence window expires | **Current (buggy) behavior:** buzzer stays silent for the new episode with no fresh button press; `HI`/`LO` display continues blinking as the only reliable indicator. This documents actual behavior — not a pass/fail check against the PRD until BUG-07 is fixed in firmware. | |
 
 ---
 

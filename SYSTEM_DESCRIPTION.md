@@ -1,8 +1,8 @@
 # System Description
 ## Wine Refrigerator Controller — Embedded Firmware
 
-**Version:** 1.0
-**Date:** 2026-03-30
+**Version:** 1.1
+**Date:** 2026-07-23
 **Status:** Current
 
 ---
@@ -136,6 +136,8 @@ Alarm condition: `|currentTemp − setTemp| ≥ 3 °C` sustained for 5 continuou
 
 Once active: 1200 Hz / 120 ms beep once per second. Display shows blinking `"HI"` or `"LO"`. Any button press silences the buzzer for 10 minutes; the visual indication persists. The alarm resets immediately when temperature returns within the ±3 °C band.
 
+> **Known issue (BUG-07, see PRD.md §6):** `alarmSilencedUntil` is not reset when the alarm condition clears. If a new, distinct alarm episode begins before the original 10-minute silence window has elapsed, the buzzer stays silent for the new episode without a fresh button press — only the blinking `"HI"`/`"LO"` display is a reliable indicator in that case. Found by code review, not yet reproduced on hardware.
+
 ### 4.7 EEPROM Persistence
 
 `setTemp` (2 bytes at address 0) and `systemOn` (1 byte at address 4) are saved to EEPROM. Writes are deferred 3 s after the last change and use `EEPROM.update()`, which skips the physical write when the stored value already matches. This limits write cycles to intentional user changes only, preserving the ~100,000-cycle endurance budget.
@@ -148,12 +150,16 @@ Display priority (highest wins):
 |---|---|---|
 | 1 | Sensor fault | `"Err"` |
 | 2 | `dutyCycleActive` | `"XXd"` (percentage + `d`) |
-| 3 | Alarm active | Blinking `"HI"` or `"LO"` |
-| 4 | Set-temperature window (< 3 s since last change) | Set temperature (solid 0–1 s, blinking 1–3 s) |
+| 3 | Set-temperature window (< 3 s since last change) | Set temperature (solid 0–1 s, blinking 1–3 s) |
+| 4 | Alarm active | Blinking `"HI"` or `"LO"` |
 | 5 | Normal | Current temperature |
 | — | System OFF | `"OFF"` (all other display logic bypassed) |
 
+> **Correction (2026-07-23):** an earlier revision of this table listed Alarm above the Set-temperature window. That was backwards — the firmware checks `inSetWindow` before `alarmActive` (see the code comment "Set window takes priority over alarm so user can see what they're changing"), so a button press during an active alarm shows the set-point, not `"HI"`/`"LO"`, until the 3 s window expires. See PRD FR-DISP-01a.
+
 Temperature format: two digits + `°C` or `°F`. Leading zero suppressed for single-digit values. Decimal point on the tens digit blinks when the compressor is in anti-short-cycle delay.
+
+> **Known issue (BUG-05, see PRD.md §6):** the `°C`/`°F` glyph is written to digit position 2 (`matrix.writeDigitRaw(2, ...)`), which is the colon position on the 4-digit HT16K33 backpack rather than a real digit. This affects `showTemp()`, `showOFF()`, `showError()`, `showHI()`, `showLO()`, and `showDutyCycle()` alike, since all of them write to position 2. Not yet fixed in firmware; needs hardware verification.
 
 Duty cycle format: two digits + `d` (e.g. `37d`). Shown for 10 s after a light long-press.
 

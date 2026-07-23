@@ -1,7 +1,7 @@
 # Integration Plan — Wine Fridge Controller
 
-**Version:** 1.0
-**Date:** 2026-04-01
+**Version:** 1.1
+**Date:** 2026-07-23
 **Status:** Draft
 
 ---
@@ -10,7 +10,7 @@
 
 ### 1.1 Software
 - Flash the current firmware and verify it compiles clean with no warnings.
-- Confirm EEPROM defaults are sane (setTemp = 22°C, systemOn = ON) — will be validated on first boot.
+- Confirm EEPROM defaults are sane (setTemp = 12°C, systemOn = ON) — will be validated on first boot.
 
 ### 1.2 Hardware bench test (before mounting)
 - Verify I2C bus: scan for devices at 0x70 (display) and 0x29 (CAP1188). Both boards have on-board pull-ups so no external resistors needed.
@@ -68,9 +68,10 @@ These are open items from the PRD that can only be confirmed against real hardwa
 
 | ID | Item | What to check |
 |---|---|---|
-| OPEN-01 / BUG-05 | Display digit mapping | Confirm °C indicator appears on the correct digit (not the colon segment at position 2). If wrong, adjust `writeDigitRaw()` call in firmware. |
-| BUG-04 | Leading zero | Confirm single-digit temps (e.g., 8°C) show ` 8` not `08`. |
-| OPEN-02 | systemOn on power-up | Decide: should the fridge always boot ON, or restore last saved state? EEPROM restore is currently implemented — verify this is desired. |
+| OPEN-01 / BUG-05 | Display digit mapping | **Confirmed by code review, not yet fixed:** the °C/°F indicator is written to digit position 2, the colon segment on the 4-digit HT16K33 backpack, not a real digit. Bench-test on the actual installed display to see how this renders. If visibly wrong, the firmware fix (moving the indicator to position 3 or 4 in `showTemp()` and the other `show*()` functions) is out of scope for this integration plan and should be tracked as a separate firmware change. |
+| BUG-04 | Leading zero | Resolved in firmware — confirm on bench that single-digit temps (e.g., 8°C) show ` 8` not `08`. |
+| OPEN-02 | systemOn on power-up | Resolved: firmware restores the last saved on/off state from EEPROM (FR-PWR-04). No decision needed — just confirm this behaves as expected on the bench (see Phase 5 test 5). |
+| BUG-07 | Alarm silence carryover | Not yet fixed in firmware. `alarmSilencedUntil` isn't reset when an alarm clears, so a new alarm episode starting within 10 minutes of a prior silenced episode may stay silent with no button press. Low priority to reproduce on the bench (requires a specific temperature swing timeline) — see SYSTEM_TEST.md 9.7. |
 | Relay polarity | Active HIGH assumption | If relay module is active LOW, invert logic in firmware for D4/D7/D9. |
 
 ---
@@ -83,6 +84,7 @@ Tie directly to SYSTEM_TEST.md once the system is installed:
 2. **Anti-short-cycle**: turn compressor off, immediately set high setTemp to demand cooling — confirm 3-minute lockout is enforced.
 3. **Alarm**: force temperature deviation ≥ 3°C for 5 minutes; verify `HI`/`LO` display + beep. Press any button; verify beep stops but display continues.
 4. **Sensor fault**: disconnect thermistor; confirm `Err` display and compressor OFF.
-5. **EEPROM**: change setTemp, power cycle; verify value is restored.
+5. **EEPROM**: change setTemp, power cycle; verify value is restored. Also toggle Power OFF, power cycle, and confirm the system restarts in OFF state (OPEN-02 — restore-on-boot is the intended behavior per FR-PWR-04).
 6. **Light auto-off**: turn light on, wait 5 minutes; confirm it turns off automatically.
 7. **Watchdog**: (optional, careful) stall the I2C bus and verify MCU resets within 8 s.
+8. **Alarm silence carryover (BUG-07, low priority)**: trigger an alarm, silence it with a button press, let temperature recover so the alarm clears, then force a new alarm condition before the original 10-minute silence window expires. Confirm current (buggy) behavior: buzzer may stay silent for the new episode with the `HI`/`LO` display as the only indicator. See SYSTEM_TEST.md 9.7.
