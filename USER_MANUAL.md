@@ -143,7 +143,21 @@ If the thermistor is disconnected, broken, or short-circuited, the display shows
 - All temperature control and alarm processing is suspended.
 - The fault clears automatically when the sensor returns to a valid reading.
 
-If `Err` persists, check the thermistor wiring at the sensor and at the controller board.
+If `Err` persists, check the thermistor wiring at the sensor and at the controller board:
+
+1. **Check the ground leg first.** One thermistor leg must be connected to **GND**. If it is not, the 10 kΩ resistor pulls A0 up to 5 V and the controller reports a fault. This is the most common cause of `Err`.
+2. Check that the other thermistor leg is connected to **A0**, and that the 10 kΩ resistor is between **A0 and 5 V**.
+3. With power on, measure the voltage between A0 and GND:
+
+| Reading at A0 | Meaning |
+|---------------|---------|
+| About 5 V | Thermistor leg not connected to GND, or thermistor open |
+| About 0 V | Thermistor shorted, or 10 kΩ resistor not connected to 5 V |
+| About 2.5 V at 25 °C, about 3.2 V at 12 °C | Wiring OK (the voltage rises as the temperature drops) |
+
+4. Make sure the connections are soldered or firmly clamped. A loose ground connection can make `Err` come and go, especially with compressor vibration.
+
+After the wiring is fixed, `Err` clears by itself. The compressor may then wait up to 3 minutes before starting (anti-short-cycle protection).
 
 ---
 
@@ -188,7 +202,8 @@ The temperature unit (°C / °F) is **not** saved and resets to °C on power-up.
 
 | Symptom | Likely cause | Action |
 |---------|-------------|--------|
-| Display shows `Err` | Thermistor disconnected or broken | Check sensor wiring |
+| Display shows `Err` and the fridge does not cool | Thermistor disconnected (most often the ground leg) or broken | Check that one thermistor leg is connected to GND, then check the rest of the sensor wiring (see Sensor Fault) |
+| `Err` appears and disappears | Loose thermistor connection | Solder or firmly clamp the thermistor wires, especially the GND leg |
 | Compressor does not start | Anti-short-cycle delay active (dot blinking) | Wait up to 3 minutes |
 | Compressor does not start (no dot) | System off, or temperature already at/below set point | Check power state and current temperature |
 | Display shows `OFF` | System powered off by C1 | Press Power (C1) to turn on |
@@ -202,7 +217,7 @@ The temperature unit (°C / °F) is **not** saved and resets to °C on power-up.
 
 | Signal | Pin |
 |--------|-----|
-| Thermistor (NTC, voltage divider) | A0 |
+| Thermistor (NTC, voltage divider): one leg to A0, other leg to GND; 10 kΩ resistor from A0 to 5 V | A0 / GND |
 | Compressor relay | D7 |
 | Fan relay | D9 |
 | Interior light relay | D4 |
